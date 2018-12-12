@@ -3,6 +3,7 @@
 #include "mbed.h"
 #include <vector>
 #include "MPU6050.h"
+#include "motors.h"
 
 
 /*=============
@@ -14,12 +15,7 @@ PIN DEFINITIONS
 #define DebugLED1       PC_11
 #define DebugLED2       PC_12
 #define DebugLED3       PD_2
-#define lMotorIN1Pin    PG_0
-#define lMotorIN2Pin    PD_1
-#define rMotorIN3Pin    PD_0
-#define rMotorIN4Pin    PF_8
-#define lMotorENPin     PF_9
-#define rMotorENPin     PF_7
+
 
 
 /*============
@@ -40,7 +36,7 @@ Serial PC_serial(USBTX, USBRX);
 /*=
 MPU
 =*/
-MPU6050 mpu;
+MPU6050 mpu; 
 float xAngle = 0;
 float yAngle = 0;
 float zAngle = 0;
@@ -56,29 +52,11 @@ DigitalOut redLED(DebugLED1);
 DigitalOut yellowLED(DebugLED2);
 DigitalOut greenLED(DebugLED3);
 
-
-/*==============
-DC MOTOR CONTROL
-==============*/
-DigitalOut  lMotorIN1(lMotorIN1Pin);
-DigitalOut  lMotorIN2(lMotorIN2Pin);
-PwmOut      lMotorEN(lMotorENPin);
-
-DigitalOut  rMotorIN3(rMotorIN3Pin);
-DigitalOut  rMotorIN4(rMotorIN4Pin);
-PwmOut      rMotorEN(rMotorENPin);
-
-Ticker motorTimer;
-
-void motorStop(){
-    lMotorEN.write(0.0f);
-    rMotorEN.write(0.0f);
-    motorTimer.detach();
-}
+  
 
 
-#define POST_SUCCESS true
-#define POST_FAIL false
+#define POST_SUCCESS    true
+#define POST_FAIL       false
 
 
 bool    POST();
@@ -101,7 +79,56 @@ int main() {
     
     lMotorEN.period_ms(10);
     rMotorEN.period_ms(10);
+    
+    bumperEnable = 1;
+    lBumpTop.rise(&lMotorStop);
+    lBumpBottom.rise(&lMotorStop);
+    rBumpTop.rise(&rMotorStop);
+    rBumpBottom.rise(&rMotorStop);
+    lBumpTop.fall(&lMotorReleased);
+    lBumpBottom.fall(&lMotorReleased);
+    rBumpTop.fall(&rMotorReleased);
+    rBumpBottom.fall(&rMotorReleased);
+    
+    rMotorUp(1.0f);
+    rMotorTimeout.attach(&rMotorStop, 2);
+    wait_ms(2500);
+    
+    
+    rMotorDown(0.3f);
+    rMotorTimeout.attach(&rMotorStop, 10);
+    
+    /*
+    DigitalIn rMotorBottomBump(PD_15);
+    DigitalIn lMotorBottomBump(PD_14);
+    //Motor Calibration
+    if(lMotorBottomBump == 1 && rMotorBottomBump == 0){
+        rMotorDown(0.4f);
+        InterruptIn rBumpBottom(PD_15);
+    }
+    if(rMotorBottomBump == 0 && rMotorBottomBump == 1){
+        lMotorDown(0.4f);
+        InterruptIn lBumpBottom(PD_14);
+    }
+    */
+    wait_ms(12000);
+    
+    lMotorDown(0.5f);
+    rMotorDown(0.5f);
 
+    
+    //wait for both runners to reach bottom
+    while(lMotorBumped == false || rMotorBumped == false){}
+    if(lMotorBumped == true){
+        while(rMotorBumped == false){}
+    }else if(rMotorBumped == true){
+        while(lMotorBumped == false){}
+    }
+ 
+    lMotorUp(1.0f);
+    rMotorUp(1.0f);
+    motorTimeout.attach(&motorStop, 2.0);
+    
     /*==
     POST
     ==*/
@@ -193,48 +220,40 @@ int main() {
         redLED = 1;
         greenLED = 0;
         
-        //need to pull leg to a certain point e.g 90 degrees in the right direction
+        //need to pull leg to a certain point e.g 45 degrees in the right direction
         uint16_t oldLegPos = RX28_1.getPosition();
         
-        //change of around 300 in position ~90 degrees
+        //change of around 150 in position ~45 degrees
         uint16_t newLegPos = RX28_1.getPosition();
         
         //release leg pin
-        RX28_2.move(1023);
+        RX28_2.move(0);
         
         PCSERIAL("LEG FALLING\n");
         
         //deploy leg to right
         if(fallingRight == true){
-            lMotorIN1 = 1;
-            lMotorIN2 = 0;
-            rMotorIN3 = 0;
-            rMotorIN4 = 1;
-            lMotorEN.write(1.0f);
-            rMotorEN.write(1.0f);
+            lMotorUp(1.0f);
+            rMotorDown(1.0f);
             
-            //keep moving until leg has moved 90 degrees (abs keeps number positive)
-            while((abs(newLegPos - oldLegPos)) < 300){
+            //keep moving until leg has moved 45 degrees (abs keeps number positive)
+            while((abs(newLegPos - oldLegPos)) < 150){
                 //maybe loop until leg has been deployed
                 newLegPos = RX28_1.getPosition();   
             }
-            motorTimer.attach(&motorStop, 0.5);
+            motorTimeout.attach(&motorStop, 0.0);
             
         //deploy leg to left
         }else if(fallingLeft == true){  
-            lMotorIN1 = 0;
-            lMotorIN2 = 1;
-            rMotorIN3 = 1;
-            rMotorIN4 = 0;
-            lMotorEN.write(1.0f);
-            rMotorEN.write(1.0f);
+            lMotorDown(1.0f);
+            rMotorUp(1.0f);
             
-            //keep moving until leg has moved 90 degrees (abs keeps number positive)
-            while((abs(newLegPos - oldLegPos)) < 300){
+            //keep moving until leg has moved 45 degrees (abs keeps number positive)
+            while((abs(newLegPos - oldLegPos)) < 150){
                 //maybe loop until leg has been deployed
                 newLegPos = RX28_1.getPosition();   
             }
-            motorTimer.attach(&motorStop, 0.5);            
+            motorTimeout.attach(&motorStop, 0.0);            
         }
         
         
@@ -278,9 +297,15 @@ int main() {
             PCSERIAL("%f\n", accel_list[i]);
         }
            
+           
+           
+        *****************************
+        THIS ONLY WORKS FOR WHEN 
+        THE BODY HAS HIT, NOT THE LEG
+        *****************************
         */
         //keep measuring acceleration until impact
-        while(old_accel_val - accel_x < 0.4f){
+        while(old_accel_val - accel_y < 0.4f){
             //measure acceleration and angle of robot. Save in old_accel_val
             old_accel_val = getGyroValues();
             wait_ms(3);
@@ -295,7 +320,6 @@ int main() {
         yellowLED = 1;
         
 
-        
         //pull back leg to right
         if(fallingRight == true){
             lMotorIN1 = 0;
@@ -317,6 +341,36 @@ int main() {
             rMotorEN.write(1.0f);
             motorTimer.attach(&motorStop, 0.5);           
         }
+        
+        uint16_t legPos = RX28_1.getPosition();
+        
+        while(abs(legPos - oldLegPos) > 10){
+         
+            //pull back leg to centre
+            if(fallingRight == true){
+                lMotorIN1 = 1;
+                lMotorIN2 = 0;
+                rMotorIN3 = 0;
+                rMotorIN4 = 1;
+                lMotorEN.write(0.2f);
+                rMotorEN.write(0.2f);
+                
+            //pull back leg to centre
+            }else if(fallingLeft == true){
+                lMotorIN1 = 1;
+                lMotorIN2 = 0;
+                rMotorIN3 = 0;
+                rMotorIN4 = 1;
+                lMotorEN.write(0.2f);
+                rMotorEN.write(0.2f);
+            }           
+            
+        }
+        
+        motorTimer.attach(&motorStop, 0.00);
+    
+        
+        
         
         exit(EXIT_SUCCESS);
     }
@@ -539,7 +593,7 @@ float getGyroValues(){
     accel_y = ay;
     accel_z = az;
     
-    return accel_x;
+    return accel_y;
 
 }
 
@@ -548,21 +602,18 @@ float getGyroValues(){
     preTensioning            
 ===================*/
 void preTensioning(){
+            
     //pre-tensioning while robot is standing.
-    //any more than 20 degrees tilt is a 'fall'
-    while(yAngle > -20 & yAngle < 20){
+    //any more than 12 degrees tilt is a 'fall'
+    while(yAngle > -12 & yAngle < 12){
         getGyroValues();
         
         //falling right if looking at robot from front
-        if(yAngle >= 5 && taughtLeft == false){
+        if(yAngle >= 2 && taughtLeft == false){
             //tension left, release right
-            lMotorIN1 = 1;
-            lMotorIN2 = 0;
-            rMotorIN3 = 0;
-            rMotorIN4 = 1;
-            lMotorEN.write(1.0f);
-            rMotorEN.write(1.0f);
-            motorTimer.attach(&motorStop, 0.05);
+            lMotorUp(1.0f);
+            rMotorDown(1.0f);
+            motorTimeout.attach(&motorStop, 0.5);
             taughtLeft = true;
             taughtRight = false;
             fallingRight = true;
@@ -570,15 +621,11 @@ void preTensioning(){
         }
         
         //falling left if looking at robot from front
-        if(yAngle <= -5 && taughtRight == false){
+        if(yAngle <= -2 && taughtRight == false){
             //tension right, release left
-            lMotorIN1 = 0;
-            lMotorIN2 = 1;
-            rMotorIN3 = 1;
-            rMotorIN4 = 0;
-            lMotorEN.write(1.0f);
-            rMotorEN.write(1.0f);
-            motorTimer.attach(&motorStop, 0.05);
+            lMotorDown(1.0f);
+            rMotorUp(1.0f);
+            motorTimeout.attach(&motorStop, 0.5);
             taughtLeft = false;
             taughtRight = true;
             fallingRight = false;
