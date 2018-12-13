@@ -24,8 +24,8 @@ extern InterruptIn rBumpBottom;
 
 extern DigitalOut  bumperEnable;
 
-extern bool lMotorBumped;
-extern bool rMotorBumped;
+extern volatile bool lMotorBumped;
+extern volatile bool rMotorBumped;
 
 
 extern void lMotorBumperEnable();

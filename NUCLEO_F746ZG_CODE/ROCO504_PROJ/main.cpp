@@ -4,45 +4,15 @@
 #include <vector>
 #include "MPU6050.h"
 #include "motors.h"
+#include "serial.h"
 
+#define POST_SUCCESS    true
+#define POST_FAIL       false
 
-/*=============
-PIN DEFINITIONS
-=============*/
-#define DynamixelTX     PD_5
-#define DynamixelRX     PD_6
-#define txEnable        PC_10
 #define DebugLED1       PC_11
 #define DebugLED2       PC_12
 #define DebugLED3       PD_2
 
-
-
-/*============
-DYNAMIXEL INFO
-============*/
-#define NumberOfServos 2
-#define DynamixelBaud 57600
-uint8_t ServoID[NumberOfServos];
-
-
-/*====
-SERIAL
-====*/
-Serial PC_serial(USBTX, USBRX);
-#define PCSERIAL(...) { PC_serial.printf(__VA_ARGS__); }
-
-
-/*=
-MPU
-=*/
-MPU6050 mpu; 
-float xAngle = 0;
-float yAngle = 0;
-float zAngle = 0;
-float accel_x = 0;
-float accel_y = 0;
-float accel_z = 0;
 
 
 /*==
@@ -52,22 +22,30 @@ DigitalOut redLED(DebugLED1);
 DigitalOut yellowLED(DebugLED2);
 DigitalOut greenLED(DebugLED3);
 
-  
-
-
-#define POST_SUCCESS    true
-#define POST_FAIL       false
-
-
+   
+void    preTensioning();
+float   getGyroValues();
 bool    POST();
 void    findServos();
-float   getGyroValues();
-void    preTensioning();
 
 bool    taughtLeft = false;
 bool    taughtRight = false;
 bool    fallingLeft = false;
 bool    fallingRight = false;
+
+/*=
+MPU
+=*/
+MPU6050 mpu;
+float xAngle = 0;
+float yAngle = 0;
+float zAngle = 0;
+float accel_x = 0;
+float accel_y = 0;
+float accel_z = 0;
+
+//float SelfTest[6];
+//float accelBias_2[3] = {0, 0, 0};
 
 
 /*==========
@@ -89,45 +67,11 @@ int main() {
     lBumpBottom.fall(&lMotorReleased);
     rBumpTop.fall(&rMotorReleased);
     rBumpBottom.fall(&rMotorReleased);
+        
     
-    rMotorUp(1.0f);
-    rMotorTimeout.attach(&rMotorStop, 2);
-    wait_ms(2500);
+    lMotorBumped = false;
+    rMotorBumped = false;
     
-    
-    rMotorDown(0.3f);
-    rMotorTimeout.attach(&rMotorStop, 10);
-    
-    /*
-    DigitalIn rMotorBottomBump(PD_15);
-    DigitalIn lMotorBottomBump(PD_14);
-    //Motor Calibration
-    if(lMotorBottomBump == 1 && rMotorBottomBump == 0){
-        rMotorDown(0.4f);
-        InterruptIn rBumpBottom(PD_15);
-    }
-    if(rMotorBottomBump == 0 && rMotorBottomBump == 1){
-        lMotorDown(0.4f);
-        InterruptIn lBumpBottom(PD_14);
-    }
-    */
-    wait_ms(12000);
-    
-    lMotorDown(0.5f);
-    rMotorDown(0.5f);
-
-    
-    //wait for both runners to reach bottom
-    while(lMotorBumped == false || rMotorBumped == false){}
-    if(lMotorBumped == true){
-        while(rMotorBumped == false){}
-    }else if(rMotorBumped == true){
-        while(lMotorBumped == false){}
-    }
- 
-    lMotorUp(1.0f);
-    rMotorUp(1.0f);
-    motorTimeout.attach(&motorStop, 2.0);
     
     /*==
     POST
@@ -148,7 +92,8 @@ int main() {
     ======================*/
     Dynamixel RX28_1(DynamixelTX, DynamixelRX, txEnable, ServoID[0], DynamixelBaud);
     Dynamixel RX28_2(DynamixelTX, DynamixelRX, txEnable, ServoID[1], DynamixelBaud);
-
+    
+    
     /*=================
     TOGGLING SERVO LEDS
     =================*/
@@ -190,7 +135,7 @@ int main() {
     getGyroValues();
     
     PCSERIAL("**************************************\n\n");
-    PCSERIAL("ROBOT MUST BE VERTICAL DURING START-UP\n");
+    PCSERIAL("ROBOT MUST BE VERTICAL DURING START-UP\n\n");
     PCSERIAL("**************************************\n\n");
     
     //wait for robot to be lifted up
@@ -203,6 +148,7 @@ int main() {
     
     //allow robot to be steadied so doesn't detect a fall straight away
     wait_ms(1000);
+       
     
     while(1){
         
@@ -220,90 +166,62 @@ int main() {
         redLED = 1;
         greenLED = 0;
         
-        //need to pull leg to a certain point e.g 45 degrees in the right direction
+
         uint16_t oldLegPos = RX28_1.getPosition();
-        
-        //change of around 150 in position ~45 degrees
+
         uint16_t newLegPos = RX28_1.getPosition();
+        
         
         //release leg pin
         RX28_2.move(0);
         
         PCSERIAL("LEG FALLING\n");
         
+        
+        
         //deploy leg to right
         if(fallingRight == true){
-            lMotorUp(1.0f);
+            
+            //lMotorUp(1.0f);
             rMotorDown(1.0f);
             
-            //keep moving until leg has moved 45 degrees (abs keeps number positive)
-            while((abs(newLegPos - oldLegPos)) < 150){
+            //keep moving until leg has made contact and servo 
+            //starts to spin other way.
+            //Dynamixel position increases when leg moves to right
+            while((newLegPos - oldLegPos) >= 0){
                 //maybe loop until leg has been deployed
-                newLegPos = RX28_1.getPosition();   
+                oldLegPos = RX28_1.getPosition(); 
+                wait_ms(5); 
+                newLegPos = RX28_1.getPosition(); 
             }
             motorTimeout.attach(&motorStop, 0.0);
             
         //deploy leg to left
-        }else if(fallingLeft == true){  
-            lMotorDown(1.0f);
+        }else if(fallingLeft == true){ 
+         
+            //lMotorDown(1.0f);
             rMotorUp(1.0f);
             
-            //keep moving until leg has moved 45 degrees (abs keeps number positive)
-            while((abs(newLegPos - oldLegPos)) < 150){
-                //maybe loop until leg has been deployed
-                newLegPos = RX28_1.getPosition();   
+            wait_ms(1000);
+            
+            accel_y = getGyroValues();
+            accel_y = accel_y + (yAngle/90);
+            //keep moving until leg has made contact and leg acceleration
+            //decreases
+            while(accel_y > 0.3){
+                accel_y = getGyroValues();
+                accel_y = accel_y + (yAngle/90);
             }
             motorTimeout.attach(&motorStop, 0.0);            
         }
         
-        
-        
-        float old_accel_val = 0;
-        
-        getGyroValues();
-        
-        std::vector<float> old_accel_list;
-        std::vector<float> accel_list;
-        
-        /*
-        Timer t;
-        t.start();
-        float timePassed = t.read();
-        
-        while(timePassed < 2.0f){
-                
-            //measure acceleration and angle of robot. Save in old_accel_val
-            old_accel_list.push_back(getGyroValues());
-            //old_accel_val = getGyroValues();
-            wait_ms(3);
-            //read again to get new acceleration value
-            getGyroValues();
-            accel_list.push_back(accel_x);
-            //PCSERIAL("old_accel_val = %f \t accel_x = %f\n", old_accel_val, accel_x); 
-            timePassed = t.read();
-            wait_ms(3);
-                
-        }
-        
-        PCSERIAL("OLD_ACCEL_LIST\n");
-        
-        for(int i = 0; i<old_accel_list.size(); i++){
-            PCSERIAL("%f\n", old_accel_list[i]);
-        }
-        
-        PCSERIAL("ACCEL_LIST\n");
-        
-        for(int i = 0; i<accel_list.size(); i++){
-            PCSERIAL("%f\n", accel_list[i]);
-        }
-           
-           
-           
+
+        /*   
         *****************************
         THIS ONLY WORKS FOR WHEN 
         THE BODY HAS HIT, NOT THE LEG
         *****************************
-        */
+        
         //keep measuring acceleration until impact
         while(old_accel_val - accel_y < 0.4f){
             //measure acceleration and angle of robot. Save in old_accel_val
@@ -318,56 +236,24 @@ int main() {
         PCSERIAL("HIT\n");
         redLED = 0;
         yellowLED = 1;
-        
+        */
 
-        //pull back leg to right
-        if(fallingRight == true){
-            lMotorIN1 = 0;
-            lMotorIN2 = 1;
-            rMotorIN3 = 1;
-            rMotorIN4 = 0;
-            lMotorEN.write(1.0f);
-            rMotorEN.write(1.0f);
-            motorTimer.attach(&motorStop, 0.5);
 
-            
-        //pull back leg to left
-        }else if(fallingLeft == true){
-            lMotorIN1 = 1;
-            lMotorIN2 = 0;
-            rMotorIN3 = 0;
-            rMotorIN4 = 1;
-            lMotorEN.write(1.0f);
-            rMotorEN.write(1.0f);
-            motorTimer.attach(&motorStop, 0.5);           
-        }
-        
-        uint16_t legPos = RX28_1.getPosition();
-        
-        while(abs(legPos - oldLegPos) > 10){
          
-            //pull back leg to centre
-            if(fallingRight == true){
-                lMotorIN1 = 1;
-                lMotorIN2 = 0;
-                rMotorIN3 = 0;
-                rMotorIN4 = 1;
-                lMotorEN.write(0.2f);
-                rMotorEN.write(0.2f);
-                
-            //pull back leg to centre
-            }else if(fallingLeft == true){
-                lMotorIN1 = 1;
-                lMotorIN2 = 0;
-                rMotorIN3 = 0;
-                rMotorIN4 = 1;
-                lMotorEN.write(0.2f);
-                rMotorEN.write(0.2f);
-            }           
+        //pull back leg to centre
+        if(fallingRight == true){
+            //lMotorUp(0.5f);
+            while(yAngle < 85){}
             
-        }
+        //pull back leg to centre
+        }else if(fallingLeft == true){
+            rMotorDown(0.5f);
+            while(yAngle > -85){}
+        }           
+            
         
-        motorTimer.attach(&motorStop, 0.00);
+        
+        motorTimeout.attach(&motorStop, 0.00);
     
         
         
@@ -381,6 +267,98 @@ int main() {
     END MAIN    
 ==============*/
 
+
+
+
+
+/*===================
+    getGyroValues            
+===================*/
+float getGyroValues(){
+    // check to see if 'data ready' bit set
+    if(mpu.readByte(MPU6050_ADDRESS, INT_STATUS) & 0x01) {
+        
+        mpu.readAccelData(accelCount);
+        mpu.getAres();
+        
+        ax = (float)accelCount[0]*aRes - accelBias[0];
+        ay = (float)accelCount[1]*aRes - accelBias[1];
+        az = (float)accelCount[2]*aRes - accelBias[2];
+        
+        mpu.readGyroData(gyroCount);
+        mpu.getGres();
+        
+        gx = (float)gyroCount[0]*gRes;
+        gy = (float)gyroCount[1]*gRes;
+        gz = (float)gyroCount[2]*gRes;
+
+    }
+    
+    mpu.MadgwickQuaternionUpdate(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f);
+    
+    yaw   = atan2(2.0f * (q[1] * q[2] + q[0] * q[3]), q[0] * q[0] + q[1] * q[1] - q[2] * q[2] - q[3] * q[3]);   
+    pitch = -asin(2.0f * (q[1] * q[3] - q[0] * q[2]));
+    roll  = atan2(2.0f * (q[0] * q[1] + q[2] * q[3]), q[0] * q[0] - q[1] * q[1] - q[2] * q[2] + q[3] * q[3]);
+    pitch *= 180.0f / PI;
+    yaw   *= 180.0f / PI; 
+    roll  *= 180.0f / PI;
+    
+    xAngle = roll;
+    yAngle = pitch;
+    zAngle = yaw;
+    
+    accel_x = ax;
+    accel_y = ay;
+    accel_z = az;
+    
+    return accel_x;
+
+}
+
+
+
+
+
+
+
+/*===================
+    preTensioning            
+===================*/
+void preTensioning(){
+            
+    //pre-tensioning while robot is standing.
+    //any more than 12 degrees tilt is a 'fall'
+    while(yAngle > -9.5f & yAngle < 9.5f){
+        getGyroValues();
+        
+        //falling right if looking at robot from front
+        if(yAngle >= 4 && taughtLeft == false){
+            //tension left, release right
+            //lMotorUp(1.0f);
+            rMotorDown(1.0f);
+            motorTimeout.attach(&motorStop, 4.0);
+            taughtLeft = true;
+            taughtRight = false;
+            fallingRight = true;
+            fallingLeft = false;
+        }
+        
+        //falling left if looking at robot from front
+        if(yAngle <= -4 && taughtRight == false){
+            //tension right, release left
+            //lMotorDown(1.0f);
+            rMotorUp(1.0f);
+            motorTimeout.attach(&motorStop, 4.0);
+            taughtLeft = false;
+            taughtRight = true;
+            fallingRight = false;
+            fallingLeft = true;
+        }
+
+    }
+    
+    
+}
 
 /*==========
     POST    
@@ -549,91 +527,6 @@ void findServos(){
     }
     
     yellowLED = 0;
-    
-}
-
-
-/*===================
-    getGyroValues            
-===================*/
-float getGyroValues(){
-    // check to see if 'data ready' bit set
-    if(mpu.readByte(MPU6050_ADDRESS, INT_STATUS) & 0x01) {
-        
-        mpu.readAccelData(accelCount);
-        mpu.getAres();
-        
-        ax = (float)accelCount[0]*aRes - accelBias[0];
-        ay = (float)accelCount[1]*aRes - accelBias[1];
-        az = (float)accelCount[2]*aRes - accelBias[2];
-        
-        mpu.readGyroData(gyroCount);
-        mpu.getGres();
-        
-        gx = (float)gyroCount[0]*gRes;
-        gy = (float)gyroCount[1]*gRes;
-        gz = (float)gyroCount[2]*gRes;
-
-    }
-    
-    mpu.MadgwickQuaternionUpdate(ax, ay, az, gx*PI/180.0f, gy*PI/180.0f, gz*PI/180.0f);
-    
-    yaw   = atan2(2.0f * (q[1] * q[2] + q[0] * q[3]), q[0] * q[0] + q[1] * q[1] - q[2] * q[2] - q[3] * q[3]);   
-    pitch = -asin(2.0f * (q[1] * q[3] - q[0] * q[2]));
-    roll  = atan2(2.0f * (q[0] * q[1] + q[2] * q[3]), q[0] * q[0] - q[1] * q[1] - q[2] * q[2] + q[3] * q[3]);
-    pitch *= 180.0f / PI;
-    yaw   *= 180.0f / PI; 
-    roll  *= 180.0f / PI;
-    
-    xAngle = roll;
-    yAngle = pitch;
-    zAngle = yaw;
-    
-    accel_x = ax;
-    accel_y = ay;
-    accel_z = az;
-    
-    return accel_y;
-
-}
-
-
-/*===================
-    preTensioning            
-===================*/
-void preTensioning(){
-            
-    //pre-tensioning while robot is standing.
-    //any more than 12 degrees tilt is a 'fall'
-    while(yAngle > -12 & yAngle < 12){
-        getGyroValues();
-        
-        //falling right if looking at robot from front
-        if(yAngle >= 2 && taughtLeft == false){
-            //tension left, release right
-            lMotorUp(1.0f);
-            rMotorDown(1.0f);
-            motorTimeout.attach(&motorStop, 0.5);
-            taughtLeft = true;
-            taughtRight = false;
-            fallingRight = true;
-            fallingLeft = false;
-        }
-        
-        //falling left if looking at robot from front
-        if(yAngle <= -2 && taughtRight == false){
-            //tension right, release left
-            lMotorDown(1.0f);
-            rMotorUp(1.0f);
-            motorTimeout.attach(&motorStop, 0.5);
-            taughtLeft = false;
-            taughtRight = true;
-            fallingRight = false;
-            fallingLeft = true;
-        }
-
-    }
-    
     
 }
 

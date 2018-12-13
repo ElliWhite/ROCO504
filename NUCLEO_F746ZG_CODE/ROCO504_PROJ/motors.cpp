@@ -36,18 +36,22 @@ InterruptIn rBumpBottom(rBumpBottomPin);
 
 DigitalOut  bumperEnable(PC_6);
 
+volatile bool lMotorBumped;
+volatile bool rMotorBumped;
 
-bool lMotorBumped = false;
-bool rMotorBumped = false;
 
 void lMotorBumperEnable(){
     lBumpTop.rise(&lMotorStop);
     lBumpBottom.rise(&lMotorStop);
+    lBumpTop.fall(&lMotorReleased);
+    lBumpBottom.fall(&lMotorReleased);
 }
 
 void rMotorBumperEnable(){
     rBumpTop.rise(&rMotorStop);
     rBumpBottom.rise(&rMotorStop);
+    rBumpTop.fall(&rMotorReleased);
+    rBumpBottom.fall(&rMotorReleased);
 }
 
 void motorStop(){
@@ -58,17 +62,21 @@ void motorStop(){
 void lMotorStop(){
     lBumpTop.rise(NULL);
     lBumpBottom.rise(NULL);
+    lBumpTop.fall(NULL);
+    lBumpBottom.fall(NULL);
     lMotorEN.write(0.0f);
     lMotorBumped = true;
-    lMotorISREnable.attach(&lMotorBumperEnable, 0.01);
+    lMotorISREnable.attach(&lMotorBumperEnable, 0.10f);
 }
 
 void rMotorStop(){
     rBumpTop.rise(NULL);
     rBumpBottom.rise(NULL);
+    rBumpTop.fall(NULL);
+    rBumpBottom.fall(NULL);
     rMotorEN.write(0.0f);
     rMotorBumped = true;
-    rMotorISREnable.attach(&rMotorBumperEnable, 0.01);
+    rMotorISREnable.attach(&rMotorBumperEnable, 0.10f);
 }
 
 void lMotorUp(float speed){
@@ -97,8 +105,18 @@ void rMotorDown(float speed){
 
 void lMotorReleased(){
     lMotorBumped = false;
+    lBumpTop.rise(NULL);
+    lBumpBottom.rise(NULL);
+    lBumpTop.fall(NULL);
+    lBumpBottom.fall(NULL);
+    lMotorISREnable.attach(&lMotorBumperEnable, 0.10f);
 }
 
 void rMotorReleased(){
     rMotorBumped = false;
+    rBumpTop.rise(NULL);
+    rBumpBottom.rise(NULL);
+    rBumpTop.fall(NULL);
+    rBumpBottom.fall(NULL);
+    rMotorISREnable.attach(&rMotorBumperEnable, 0.10f);
 }
