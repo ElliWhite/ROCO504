@@ -73,24 +73,10 @@ int main() {
     lMotorBumped = false;
     rMotorBumped = false;
     
-    /*
+    
     rMotorUp(1.0f);
-    motorTimeout.attach(&motorStop, 0.2);
-    wait_ms(1000);
-    exit(EXIT_FAILURE);
-    */
-    
-    while(1){
-        bool isBumped = rMotorBumped;
-        if(rMotorBumped){
-            redLED = 1;
-            wait_ms(1000);
-            redLED = 0;
-            rMotorBumped = false;
-        }
-    }
- 
-    
+    motorTimeout.attach(&motorStop, 1.0);
+       
     
     /*==
     POST
@@ -146,45 +132,10 @@ int main() {
     
     PCSERIAL("Starting up MPU\n");
     
-    //allow gyro to start up and read true value
-    for(int i = 0; i < 5000; i++){
+    //allow gyro to start up and empty its FIFO
+    for(int i = 0; i < 1024; i++){
         getGyroValues();
     }
-    
-    while(1){
-        PCSERIAL("%f\n", getGyroValues());
-    }
-    
-    redLED = 1;
-      
-    std::vector<float> gyroVals;
-    
-    Timer t;
-    t.start();
-    while(t.read_ms() < 4000){
-        gyroVals.push_back(getGyroValues());
-        wait_ms(3);
-    }
-    
-    for(int n = 0; n < gyroVals.size(); n++){
-        PCSERIAL("%f\n", gyroVals[n]);
-    }
-    
-    t.stop();
-    exit(EXIT_FAILURE);
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     
     
     PCSERIAL("**************************************\n\n");
@@ -197,13 +148,36 @@ int main() {
         redLED = 1;
     }
     
-    PCSERIAL("Robot Vertical\n");
+    PCSERIAL("Robot Vertical\n\r");
     
     //allow robot to be steadied so doesn't detect a fall straight away
     wait_ms(1000);
-       
+    
+    PCSERIAL("Calibratiing Right Motor\n\r");
+    
+    //try and calibrate motor
+    rMotorDown(0.5f);
+    while(1){
+       if(!rMotorBumped){
+           yellowLED = 1;  
+       }else{
+           yellowLED = 0;
+           wait_ms(500);
+           rMotorUp(1.0f);
+           motorTimeout.attach(&motorStop, 4.0f);
+           break;
+       }
+    }
+    
+    wait_ms(5000);
+    
+    PCSERIAL("Right Motor Calibrated\n\r");      
     
     while(1){
+        
+        std::vector<float> gyroVals;
+        float accel_average = 0;
+        float cummulative_accel = 0;
         
         taughtLeft = false;
         taughtRight = false;
@@ -213,21 +187,17 @@ int main() {
         redLED = 0;
         greenLED = 1;
         
-        preTensioning();
-        
-        //falling
-        redLED = 1;
-        greenLED = 0;
-        
         uint16_t originalLegPos = RX28_1.getPosition();
 
         uint16_t oldLegPos = originalLegPos;
 
         uint16_t newLegPos = originalLegPos;
         
+        preTensioning();
         
-        //release leg pin
-        RX28_2.move(200);
+        //falling
+        redLED = 1;
+        greenLED = 0;
         
         PCSERIAL("LEG FALLING\n");
         
@@ -236,37 +206,81 @@ int main() {
         //deploy leg to right
         if(fallingRight == true){
             
-            //lMotorUp(1.0f);
-            rMotorDown(1.0f);
+            lMotorUp(1.0f);
+            motorTimeout.attach(&motorStop, 5.0f);
+            //release leg pin
+            RX28_2.move(700);
             
-            //keep moving until leg has made contact and servo 
-            //starts to spin other way.
-            //Dynamixel position increases when leg moves to right
-            while((newLegPos - oldLegPos) >= 0){
-                //maybe loop until leg has been deployed
-                oldLegPos = RX28_1.getPosition(); 
-                wait_ms(5); 
-                newLegPos = RX28_1.getPosition(); 
+            while(1){
+                for(int n=0; n<50; n++){
+                    gyroVals.push_back(getGyroValues());
+                    cummulative_accel = cummulative_accel + accel_x;
+                    accel_average = (cummulative_accel)/(n+1);
+                    wait_ms(3);
+                }
+                
+                PCSERIAL("%f\n", accel_average);
+                
+                if(accel_average > 0.5f){
+                    lMotorDown(0.4);
+                    break;
+                }else{
+                    gyroVals.clear();
+                    cummulative_accel = 0;
+                }
             }
+            
+            newLegPos = RX28_1.getPosition();
+            
+            while(abs(newLegPos-originalLegPos)>50){
+                newLegPos = RX28_1.getPosition();
+                PCSERIAL("%d\n", newLegPos);
+            }
+            
             motorTimeout.attach(&motorStop, 0.0);
+
+            greenLED = 1;
             
         //deploy leg to left
         }else if(fallingLeft == true){ 
-         
-            //lMotorDown(1.0f);
+        
             rMotorUp(1.0f);
+            motorTimeout.attach(&motorStop, 5.0f);
+            //release leg pin
+            RX28_2.move(700);
             
-            wait_ms(4000);
-            
-            accel_x = getGyroValues();
-            accel_x = accel_x + (yAngle/90);
-            //keep moving until leg has made contact and leg acceleration
-            //decreases
-            while(accel_x > 0.3f){
-                accel_x = getGyroValues();
-                accel_x = accel_x + (yAngle/90);
+            while(1){
+                for(int n=0; n<50; n++){
+                    gyroVals.push_back(getGyroValues());
+                    cummulative_accel = cummulative_accel + accel_x;
+                    accel_average = (cummulative_accel)/(n+1);
+                    wait_ms(3);
+                }
+                
+                PCSERIAL("%f\n", accel_average);
+                
+                if(accel_average > 0.5f){
+                    rMotorDown(0.4);
+                    break;
+                }else{
+                    gyroVals.clear();
+                    cummulative_accel = 0;
+                }
             }
-            motorTimeout.attach(&motorStop, 0.0);            
+            
+            newLegPos = RX28_1.getPosition();
+            
+            while(abs(newLegPos-originalLegPos)>50){
+                newLegPos = RX28_1.getPosition();
+                PCSERIAL("%d\n", newLegPos);
+            }
+            
+            motorTimeout.attach(&motorStop, 0.0);
+
+            greenLED = 1;
+   
+     
+                     
         }
         
 
@@ -290,25 +304,9 @@ int main() {
         PCSERIAL("HIT\n");
         redLED = 0;
         yellowLED = 1;
-        */
-
-
-         
-        //pull back leg to centre
-        if(fallingRight == true){
-            //lMotorUp(0.5f);
-            while(yAngle < 85){}
-            
-        //pull back leg to centre
-        }else if(fallingLeft == true){
-            rMotorDown(0.5f);
-            while(yAngle > -85){}
-        }           
-            
-        
         
         motorTimeout.attach(&motorStop, 0.00);
-    
+        */
         
         
         
@@ -384,8 +382,8 @@ void preTensioning(){
         if(yAngle >= 4 && taughtLeft == false){
             //tension left, release right
             //lMotorUp(1.0f);
-            rMotorDown(1.0f);
-            motorTimeout.attach(&motorStop, 4.0);
+            rMotorDown(0.7f);
+            motorTimeout.attach(&motorStop, 2.0);
             taughtLeft = true;
             taughtRight = false;
             fallingRight = true;
@@ -397,7 +395,7 @@ void preTensioning(){
             //tension right, release left
             //lMotorDown(1.0f);
             rMotorUp(1.0f);
-            motorTimeout.attach(&motorStop, 4.0);
+            motorTimeout.attach(&motorStop, 2.0);
             taughtLeft = false;
             taughtRight = true;
             fallingRight = false;
@@ -462,7 +460,7 @@ bool POST() {
         PCSERIAL("******************\n");        
     }else if(RX28_1_Error != 0){
         PCSERIAL("*******************\n");
-        PCSERIAL("RX28_1 ERROR = %x\n", RX28_2_Error);
+        PCSERIAL("RX28_1 ERROR = %x\n", RX28_1_Error);
         PCSERIAL("*******************\n");
     }
     if(RX28_2_Error == 128){
@@ -532,15 +530,7 @@ void findServos(){
     
     //wait_ms(2000);
     
-    char ServosFound = 0;
-    
-    /*
-    while(1){
-        Dynamixel RX28_x(DynamixelTX, DynamixelRX, txEnable, 1, DynamixelBaud);
-        uint8_t RX28_x_Res = RX28_x.findServo();
-    }
-    */
-        
+    char ServosFound = 0;       
     
     for(uint8_t i = 1; i < 253; i++){
         
