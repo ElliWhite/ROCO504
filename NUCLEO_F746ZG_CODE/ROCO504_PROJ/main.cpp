@@ -1,10 +1,11 @@
+#include <list>
+#include <vector>
 #include "mbed.h"
 #include "Dynamixel.h"
-#include "mbed.h"
-#include <vector>
 #include "MPU6050.h"
 #include "motors.h"
 #include "serial.h"
+
 
 #define POST_SUCCESS    true
 #define POST_FAIL       false
@@ -72,6 +73,24 @@ int main() {
     lMotorBumped = false;
     rMotorBumped = false;
     
+    /*
+    rMotorUp(1.0f);
+    motorTimeout.attach(&motorStop, 0.2);
+    wait_ms(1000);
+    exit(EXIT_FAILURE);
+    */
+    
+    while(1){
+        bool isBumped = rMotorBumped;
+        if(rMotorBumped){
+            redLED = 1;
+            wait_ms(1000);
+            redLED = 0;
+            rMotorBumped = false;
+        }
+    }
+ 
+    
     
     /*==
     POST
@@ -131,8 +150,42 @@ int main() {
     for(int i = 0; i < 5000; i++){
         getGyroValues();
     }
-        
-    getGyroValues();
+    
+    while(1){
+        PCSERIAL("%f\n", getGyroValues());
+    }
+    
+    redLED = 1;
+      
+    std::vector<float> gyroVals;
+    
+    Timer t;
+    t.start();
+    while(t.read_ms() < 4000){
+        gyroVals.push_back(getGyroValues());
+        wait_ms(3);
+    }
+    
+    for(int n = 0; n < gyroVals.size(); n++){
+        PCSERIAL("%f\n", gyroVals[n]);
+    }
+    
+    t.stop();
+    exit(EXIT_FAILURE);
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
     
     PCSERIAL("**************************************\n\n");
     PCSERIAL("ROBOT MUST BE VERTICAL DURING START-UP\n\n");
@@ -166,14 +219,15 @@ int main() {
         redLED = 1;
         greenLED = 0;
         
+        uint16_t originalLegPos = RX28_1.getPosition();
 
-        uint16_t oldLegPos = RX28_1.getPosition();
+        uint16_t oldLegPos = originalLegPos;
 
-        uint16_t newLegPos = RX28_1.getPosition();
+        uint16_t newLegPos = originalLegPos;
         
         
         //release leg pin
-        RX28_2.move(0);
+        RX28_2.move(200);
         
         PCSERIAL("LEG FALLING\n");
         
@@ -202,15 +256,15 @@ int main() {
             //lMotorDown(1.0f);
             rMotorUp(1.0f);
             
-            wait_ms(1000);
+            wait_ms(4000);
             
-            accel_y = getGyroValues();
-            accel_y = accel_y + (yAngle/90);
+            accel_x = getGyroValues();
+            accel_x = accel_x + (yAngle/90);
             //keep moving until leg has made contact and leg acceleration
             //decreases
-            while(accel_y > 0.3){
-                accel_y = getGyroValues();
-                accel_y = accel_y + (yAngle/90);
+            while(accel_x > 0.3f){
+                accel_x = getGyroValues();
+                accel_x = accel_x + (yAngle/90);
             }
             motorTimeout.attach(&motorStop, 0.0);            
         }
@@ -316,19 +370,14 @@ float getGyroValues(){
 }
 
 
-
-
-
-
-
 /*===================
     preTensioning            
 ===================*/
 void preTensioning(){
             
     //pre-tensioning while robot is standing.
-    //any more than 12 degrees tilt is a 'fall'
-    while(yAngle > -9.5f & yAngle < 9.5f){
+    //any more than 10 degrees tilt is a 'fall'
+    while(yAngle > -10 & yAngle < 10){
         getGyroValues();
         
         //falling right if looking at robot from front
@@ -359,6 +408,7 @@ void preTensioning(){
     
     
 }
+
 
 /*==========
     POST    
