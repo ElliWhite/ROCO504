@@ -28,6 +28,8 @@ We propose to design and create a robotic leg that consists of agonist-antagonis
 ![alt text](https://github.com/ElliWhite/ROCO504/blob/master/Photos/IMG_20190105_160833.jpg)
 
 ### Conclusion
+Video: https://youtu.be/zlB8UxlkwFY
+
 We have built a platform that, with more work, will be capable of demonstrating the use of agonist-antagonist joints and artificial soft tendons to absorb a fall of a robot. The software algorithms that are in place are capable of successfully executing a fall-reduction system, but it is the hardware that causes limitations. The motors do not have enough torque to slowly lower the body down to the floor, nor have a high enough RPM to tension the leg to a high enough degree before the body reaches the floor. 
 
 The biggest improvement to be made would be changing the DC motors to a more powerful version. This would enable a faster actuation of the linear actuators and also allow the actuators to move when under heavy load and not stall. This change would also require a change to the motor driver IC to a part that would be able to handle the higher current.
