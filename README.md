@@ -1,5 +1,5 @@
 # ROCO504: Advanced Robot Design
-## Robot Active Fall-Absorption Mechanism
+## Active Robot Fall-Absorption Mechanism
 ### Mason Carter, Luka Danilovic, Elliott White
 
 This is a repository to hold all the files for the ROCO504 project.
