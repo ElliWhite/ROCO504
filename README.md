@@ -9,7 +9,7 @@ The NUCLEO-F746ZG code needs to be loaded into https://os.mbed.com/ online compi
 
 mbed-os.lib revision 4928:e1bea44 also needs to be added to the project. 
 
-#### Project Assignment
+### Project Assignment
 For the assignment the group will need to design, implement and evaluate an advanced robot
 design. Typical skills to be acquired/demonstrated include the use of CAD, FEA, 3D printing,
 materials, mechanisms, robot programming and structural analysis. The project will enable the participents to
@@ -17,10 +17,10 @@ study, implement and test various aspects of robotics, including soft and exotic
 actuation principles, 3D-printable structures, and the interaction of a robot with its environment. 
 A budget of £70 for the project is given.
 
-#### Abstract
+### Abstract
 The purpose of this research project was to design and build a prototype robot to serve as a proof of concept for a Active Robot Fall-Absorption Mechanism. Large robots with a small foot-base will inevitably fall over, so we have designed a mechanism to dampen the fall of a robot and reduce any damage caused to it from the fall. Upon successful completion of the building of the mechanism and conducting tests, our findings indicate that with slight improvements, originally not possible due to budget constraints, this project would yield a beneficial mechanism capable of performing its task of dampening a fall of a much larger robot.
 
-#### Introduction
+### Introduction
 As the trend of Robotics leans towards creating taller robots, more researchers are struggling with the task of trying to keep a robot with a small foot-base upright. The robot will, inevitably, fall over. This can cause massive damage to the robot, mostly consisting of mechanical damage to the links between joints, or servo damage. Until fall prevention becomes more effective, a simpler fall-damage-reduction system would be incredibly useful. 
 
 We propose to design and create a robotic body and leg, for the provided budget of £70.00. The main body will consist of agonist-antagonist actuators and can detect when a robot has fallen past its self-balancing point. The leg will then reach out and use artificial tendons to reduce the falling speed of the body. This can be comparable to how a human might brace themselves when falling. The artificial tendons are used to store potential spring energy. 
