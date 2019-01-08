@@ -4,6 +4,11 @@
 
 This is a repository to hold all the files for the ROCO504 project.
 
+#### Requisites
+The NUCLEO-F746ZG code needs to be loaded into https://os.mbed.com/ online compiler for it to work. 
+
+mbed-os.lib revision 4928:e1bea44 also needs to be added to the project. 
+
 #### Project Assignment
 For the assignment the group will need to design, implement and evaluate an advanced robot
 design. Typical skills to be acquired/demonstrated include the use of CAD, FEA, 3D printing,
