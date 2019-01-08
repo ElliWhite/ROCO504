@@ -1,5 +1,6 @@
 #include "Dynamixel.h"
 #include "mbed.h"
+#include "serial.h"
 
 // ========== Compile Options ==========
 #define ENABLE_uSerial 0
@@ -11,9 +12,9 @@
     #define DEBUG(...)
 #endif
 
-BusOut myleds(LED1, LED2, LED3);
-
 Timer t;
+
+uint8_t ServoID[NumberOfServos];
 
 bool timeOut;
 
@@ -50,6 +51,7 @@ uint8_t Dynamixel::ping()
         // Dynamixel not writeable
     }
   
+    wait_us(1);
     
     if ( m_motorID != BROADCAST_ID ) {
         int i = 0;
@@ -539,3 +541,7 @@ uint8_t Dynamixel::setAngleLimit(uint16_t mode, uint8_t address)
     
     return statusBuffer[4]; // Return error
 }
+
+
+
+

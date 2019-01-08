@@ -3,6 +3,21 @@
 
 #include "mbed.h"
 
+/*=============
+PIN DEFINITIONS
+=============*/
+#define DynamixelTX     PD_5
+#define DynamixelRX     PD_6
+#define txEnable        PC_10
+
+/*============
+DYNAMIXEL INFO
+============*/
+#define NumberOfServos 2
+#define DynamixelBaud 57600
+extern uint8_t ServoID[NumberOfServos];
+
+
 const unsigned char BROADCAST_ID = 0xfe;
 const unsigned char STATUS_PACKET_LENGTH = 0x06;
 // Instruction set
@@ -29,6 +44,7 @@ const unsigned char ADDRESS_CURRENT_POSITION_L = 0x24;
 
 const unsigned char TORQUE_ENABLE = 0x01;
 const unsigned char TORQUE_DISABLE = 0x00;
+
 
 class Dynamixel
 {
